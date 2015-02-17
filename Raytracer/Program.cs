@@ -54,6 +54,27 @@ namespace SharpRT
 
             return distance >= 0;
         }
+
+        /// <summary>
+        /// Returns the surface normal at any point on the sphere.
+        /// </summary>
+        /// <param name="pos">Point on the sphere's surface.</param>
+        public Vector Normal(Point pos)
+        {
+            return Vector.Normalize(pos - center);
+        }
+    }
+
+    public struct Light
+    {
+        public Point position;
+        public float intensity;
+
+        public Light(Point position, float intensity)
+        {
+            this.position = position;
+            this.intensity = intensity;
+        }
     }
 
     class MainClass
@@ -61,28 +82,48 @@ namespace SharpRT
         private static IList<Sphere> geometry = new List<Sphere>() {
             new Sphere(new Point(-1, 1, 10), 2),
             new Sphere(new Point(1, -1, 4), 1),
+            new Sphere(new Point(0, -255, 0), 250),
         };
 
-        private static IList<Color> materials = new List<Color>() { // using the word "material" loosely here
-            Color.Red,
-            Color.Blue,
+        private static IList<Vector> materials = new List<Vector>() { // using the word "material" loosely here
+            new Vector(1, 0, 0),
+            new Vector(0, 0, 1),
+            new Vector(0, 1, 0),
         };
 
-        public static bool Intersect(Ray ray, out int sphereIndex, out float distance)
+        private static IList<Light> lights = new List<Light>() {
+            new Light(new Point(0, 6, 0), 60),
+        };
+
+        public static bool Intersect(Ray ray, out int sphereIndex, out float distance,
+                                     float minDistance = 0, float maxDistance = float.MaxValue)
         {
-            distance = float.MaxValue;
+            distance = maxDistance;
             sphereIndex = -1;
 
             for (int t = 0; t < geometry.Count; ++t) {
                 float distToSphere;
 
-                if (geometry[t].Intersect(ray, out distToSphere) && (distToSphere < distance)) {
-                    distance = distToSphere;
-                    sphereIndex = t;
+                if (geometry[t].Intersect(ray, out distToSphere)) {
+                    if ((minDistance <= distToSphere) && (distToSphere < distance)) {
+                        distance = distToSphere;
+                        sphereIndex = t;
+                    }
                 }
             }
 
             return sphereIndex != -1;
+        }
+
+        public static int floatToInt(float rgb)
+        {
+            if (rgb < 0) {
+                return 0;
+            } else if (rgb > 1) {
+                return 255;
+            } else {
+                return (int)(rgb * 255);
+            }
         }
 
         public static void Main(string[] args)
@@ -97,6 +138,9 @@ namespace SharpRT
 
             for (int y = 0; y < img.Height; ++y) {
                 for (int x = 0; x < img.Width; ++x) {
+                    // let's store the color in a 3D vector (as RGB components) for more flexibility
+                    Vector color = Vector.Zero;
+
                     // compute the resolution-independent camera uv coordinates
                     float u = 2 * ((float)x / (img.Width - 1)) - 1;
                     float v = 1 - 2 * ((float)y / (img.Height - 1));
@@ -108,10 +152,45 @@ namespace SharpRT
                     int hitSphere;
 
                     if (Intersect(ray, out hitSphere, out distance)) {
-                        img.SetPixel(x, y, materials[hitSphere]);
-                    } else {
-                        img.SetPixel(x, y, Color.Black);
+
+                        // if we get here it means that there is an object under this pixel
+                        // so what we do is find the intersection point from the distance...
+
+                        // the PointAt method amounts to ray.origin + distance * ray.direction
+                        Point hitPoint = ray.PointAt(distance);
+
+                        // now the question we want to ask is, does this sphere receive light
+                        // from any light source? if so, we should calculate the amount of
+                        // light falling onto the sphere at that position...
+
+                        // we'll need the surface normal at the hit point for lighting
+                        Vector normal = geometry[hitSphere].Normal(hitPoint);
+
+                        // this is the same as asking whether there is any sphere in the way
+                        // between the hit point and the light source, so we check that
+
+                        foreach (var light in lights) {
+                            Vector hitPointToLight = light.position - hitPoint;
+                            float distanceToLight = Vector.Length(hitPointToLight);
+
+                            Ray lightRay = new Ray(hitPoint, hitPointToLight);
+
+                            float distanceToObstacle;
+                            int unused;
+
+                            if (!Intersect(lightRay, out unused, out distanceToObstacle, 1e-4f, distanceToLight)) {
+                                // there is no obstacle, so this light is visible from the hit
+                                // point. therefore, calculate the amount of light here...
+
+                                // lighting term = sphere color * dot(light vector, normal) * intensity / distance^2
+                                color += materials[hitSphere] * Math.Max(0, Vector.Dot(lightRay.Direction, normal)) * light.intensity / (float)Math.Pow(distanceToLight, 2);
+                            }
+                        }
                     }
+
+                    img.SetPixel(x, y, Color.FromArgb(floatToInt(color.X),
+                                                      floatToInt(color.Y),
+                                                      floatToInt(color.Z)));
                 }
             }
 
