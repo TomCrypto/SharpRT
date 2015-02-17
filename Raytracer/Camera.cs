@@ -77,7 +77,7 @@ namespace SharpRT
             this.position = position;
             this.pitch = pitch;
             this.yaw = yaw;
-            this.FieldOfView = fov;
+            this.fov = fov;
             UpdateViewMatrix();
         }
 

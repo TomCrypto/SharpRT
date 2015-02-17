@@ -76,7 +76,7 @@ namespace SharpRT
                 for (int x = 0; x < img.Width; ++x) {
                     // compute the resolution-independent camera uv coordinates
                     float u = 2 * ((float)x / (img.Width - 1)) - 1;
-                    float v = 2 * ((float)y / (img.Height - 1)) - 1;
+                    float v = 1 - 2 * ((float)y / (img.Height - 1));
 
                     // get the corresponding camera ray for this pixel
                     var ray = camera.TraceRay(u, v);

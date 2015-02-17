@@ -128,7 +128,7 @@ namespace SharpRT
         public static float Inclination(Vector u)
         {
             var len = Length(u);
-            if (len > 1e-10) return (float)(Math.Acos(u.Y / len) - Math.PI / 2);
+            if (len > 1e-10) return (float)(Math.PI / 2 - Math.Acos(u.Y / len));
             else throw new InvalidOperationException("Vector has no direction");
         }
 
@@ -505,7 +505,7 @@ namespace SharpRT
         /// <summary>
         /// Creates a translation matrix.
         /// </summary>
-        /// <param name="vec">The point to become the origin.</param>
+        /// <param name="vec">The point which was the origin.</param>
         public static Matrix Translation(Point pt)
         {
             return new Matrix(new Vector(1, 0, 0),
@@ -545,8 +545,8 @@ namespace SharpRT
             var s = (float)Math.Sin(pitch);
 
             return new Matrix(new Vector(+1, +0, +0),
-                              new Vector(+0, +c, +s),
-                              new Vector(+0, -s, +c),
+                              new Vector(+0, +c, -s),
+                              new Vector(+0, +s, +c),
                               Vector.Zero);
         }
 
@@ -558,9 +558,9 @@ namespace SharpRT
             var c = (float)Math.Cos(yaw);
             var s = (float)Math.Sin(yaw);
 
-            return new Matrix(new Vector(+c, +0, -s),
+            return new Matrix(new Vector(+c, +0, +s),
                               new Vector(+0, +1, +0),
-                              new Vector(+s, +0, +c),
+                              new Vector(-s, +0, +c),
                               Vector.Zero);
         }
 
@@ -572,8 +572,8 @@ namespace SharpRT
             var c = (float)Math.Cos(roll);
             var s = (float)Math.Sin(roll);
 
-            return new Matrix(new Vector(+c, +s, +0),
-                              new Vector(-s, +c, +0),
+            return new Matrix(new Vector(+c, -s, +0),
+                              new Vector(+s, +c, +0),
                               new Vector(+0, +0, +1),
                               Vector.Zero);
         }
