@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -57,13 +58,35 @@ namespace SharpRT
 
     class MainClass
     {
+        private static IList<Sphere> geometry = new List<Sphere>() {
+            new Sphere(new Point(-1, 1, 10), 2),
+            new Sphere(new Point(1, -1, 4), 1),
+        };
+
+        private static IList<Color> materials = new List<Color>() { // using the word "material" loosely here
+            Color.Red,
+            Color.Blue,
+        };
+
+        public static bool Intersect(Ray ray, out int sphereIndex, out float distance)
+        {
+            distance = float.MaxValue;
+            sphereIndex = -1;
+
+            for (int t = 0; t < geometry.Count; ++t) {
+                float distToSphere;
+
+                if (geometry[t].Intersect(ray, out distToSphere) && (distToSphere < distance)) {
+                    distance = distToSphere;
+                    sphereIndex = t;
+                }
+            }
+
+            return sphereIndex != -1;
+        }
+
         public static void Main(string[] args)
         {
-            // let's create two spheres, A and B
-
-            Sphere A = new Sphere(new Point(-1, 1, 10), 2);
-            Sphere B = new Sphere(new Point(1, -1, 4), 1);
-
             // setup the camera as well
 
             var camera = new Camera(new Point(0, 0, 0), 0, 0, (float)(75 * Math.PI / 180));
@@ -81,36 +104,13 @@ namespace SharpRT
                     // get the corresponding camera ray for this pixel
                     var ray = camera.TraceRay(u, v);
 
-                    bool intersectsA, intersectsB;
-                    float distanceToA, distanceToB;
+                    float distance;
+                    int hitSphere;
 
-                    // find out which spheres this ray intersects
-                    intersectsA = A.Intersect(ray, out distanceToA);
-                    intersectsB = B.Intersect(ray, out distanceToB);
-
-                    // if it intersects neither, just output a black pixel
-                    if (!intersectsA && !intersectsB) {
-                        img.SetPixel(x, y, Color.Black);
-                        continue;
-                    }
-
-                    // if it intersects only A, shade the pixel red
-                    if (intersectsA && !intersectsB) {
-                        img.SetPixel(x, y, Color.FromArgb(255, 0, 0));
-                        continue;
-                    }
-
-                    // same for B, but shade it blue in that case
-                    if (intersectsB && !intersectsA) {
-                        img.SetPixel(x, y, Color.FromArgb(0, 0, 255));
-                        continue;
-                    }
-
-                    // finally, if it intersects both, use the closest one
-                    if (distanceToA < distanceToB) {
-                        img.SetPixel(x, y, Color.FromArgb(255, 0, 0));
+                    if (Intersect(ray, out hitSphere, out distance)) {
+                        img.SetPixel(x, y, materials[hitSphere]);
                     } else {
-                        img.SetPixel(x, y, Color.FromArgb(0, 0, 255));
+                        img.SetPixel(x, y, Color.Black);
                     }
                 }
             }
