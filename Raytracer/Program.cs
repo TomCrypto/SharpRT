@@ -93,6 +93,7 @@ namespace SharpRT
 
         private static IList<Light> lights = new List<Light>() {
             new Light(new Point(0, 6, 0), 60),
+            new Light(new Point(-2, 4, 1), 15),
         };
 
         public static bool Intersect(Ray ray, out int sphereIndex, out float distance,
