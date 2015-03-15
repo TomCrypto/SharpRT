@@ -81,6 +81,11 @@ namespace SharpRT
             return new Vector(-u.X, -u.Y, -u.Z);
         }
 
+        public static Vector operator *(Vector u, Vector v)
+        {
+            return new Vector(u.X * v.X, u.Y * v.Y, u.Z * v.Z);
+        }
+
         public static Vector operator *(Vector u, float s)
         {
             return new Vector(u.X * s, u.Y * s, u.Z * s);

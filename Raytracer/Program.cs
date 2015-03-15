@@ -65,6 +65,21 @@ namespace SharpRT
         }
     }
 
+    public struct Material
+    {
+        private Vector albedo;
+
+        public Material(Vector albedo)
+        {
+            this.albedo = albedo; // 0 <= albedo <= 1 (for each channel)
+        }
+
+        public Vector BRDF(float cosI, float cosO)
+        {
+            return this.albedo / (float)Math.PI;
+        }
+    }
+
     public struct Light
     {
         public Point position;
@@ -85,15 +100,15 @@ namespace SharpRT
             new Sphere(new Point(0, -255, 0), 250),
         };
 
-        private static IList<Vector> materials = new List<Vector>() { // using the word "material" loosely here
-            new Vector(1, 0, 0),
-            new Vector(0, 0, 1),
-            new Vector(0, 1, 0),
+        private static IList<Material> materials = new List<Material>() {
+            new Material(new Vector(1, 0, 0)),
+            new Material(new Vector(0, 0, 1)),
+            new Material(new Vector(0, 1, 0)),
         };
 
         private static IList<Light> lights = new List<Light>() {
-            new Light(new Point(0, 6, 0), 60),
-            new Light(new Point(-2, 4, 1), 15),
+            new Light(new Point(0, 6, 0), 160),
+            new Light(new Point(-2, 4, 1), 45),
         };
 
         public static bool Intersect(Ray ray, out int sphereIndex, out float distance,
@@ -114,6 +129,82 @@ namespace SharpRT
             }
 
             return sphereIndex != -1;
+        }
+
+        private static Random random = new Random();
+
+        public static Vector RandomDirectionInHemisphere(Vector normal)
+        {
+            while (true) {
+                float x = (float)(random.NextDouble() - 0.5);
+                float y = (float)(random.NextDouble() - 0.5);
+                float z = (float)(random.NextDouble() - 0.5);
+
+                if (x*x + y*y + z*z > 0.5f*0.5f) {
+                    continue;
+                }
+
+                Vector dir = Vector.Normalize(new Vector(x, y, z));
+
+                if (Vector.Dot(dir, normal) < 0) {
+                    dir = -dir;
+                }
+
+                return dir;
+            }
+        }
+
+        public static Vector Radiance(Ray ray, bool recurse = true)
+        {
+            Vector total = Vector.Zero;
+
+            float distance;
+            int hitSphere;
+
+            if (Intersect(ray, out hitSphere, out distance)) {
+                Point hitPoint = ray.PointAt(distance);
+
+                Vector normal = geometry[hitSphere].Normal(hitPoint);
+
+                // compute cosine of angle of outgoing direction with surface normal
+                float cosO = -Vector.Dot(ray.Direction, normal);
+
+                // evaluate radiance in the direction of the point light source(s)
+
+                foreach (var light in lights) {
+                    Vector hitPointToLight = light.position - hitPoint;
+                    float distanceToLight = Vector.Length(hitPointToLight);
+
+                    Ray lightRay = new Ray(hitPoint, hitPointToLight);
+
+                    float distanceToObstacle;
+                    int unused;
+
+                    if (!Intersect(lightRay, out unused, out distanceToObstacle, 1e-4f, distanceToLight)) {
+                        float cosI = Vector.Dot(lightRay.Direction, normal);
+
+                        total += materials[hitSphere].BRDF(cosI, cosO) * cosI * (light.intensity / (float)Math.Pow(distanceToLight, 2));
+                    }
+                }
+
+                if (recurse) {
+                    // now try and approximately evaluate light contribution over the entire hemisphere
+
+                    const int NUM_DIRECTIONS = 20;
+
+                    for (int i = 0; i < NUM_DIRECTIONS; ++i) {
+                        Vector dir = RandomDirectionInHemisphere(normal);
+
+                        Vector radianceInThatDir = Radiance(new Ray(hitPoint, dir), false); // don't recurse further
+
+                        float cosI = Vector.Dot(dir, normal);
+
+                        total += materials[hitSphere].BRDF(cosI, cosO) * cosI * radianceInThatDir / NUM_DIRECTIONS;
+                    }
+                }
+            }
+
+            return total;
         }
 
         public static int floatToInt(float rgb)
@@ -148,9 +239,6 @@ namespace SharpRT
 
             for (int y = 0; y < img.Height; ++y) {
                 for (int x = 0; x < img.Width; ++x) {
-                    // let's store the color in a 3D vector (as RGB components) for more flexibility
-                    Vector color = Vector.Zero;
-
                     // compute the resolution-independent camera uv coordinates
                     float u = 2 * ((float)x / (img.Width - 1)) - 1;
                     float v = 1 - 2 * ((float)y / (img.Height - 1));
@@ -161,49 +249,11 @@ namespace SharpRT
                     // get the corresponding camera ray for this pixel
                     var ray = camera.TraceRay(u, v);
 
-                    float distance;
-                    int hitSphere;
+                    Vector radiance = Radiance(ray);
 
-                    if (Intersect(ray, out hitSphere, out distance)) {
-
-                        // if we get here it means that there is an object under this pixel
-                        // so what we do is find the intersection point from the distance...
-
-                        // the PointAt method amounts to ray.origin + distance * ray.direction
-                        Point hitPoint = ray.PointAt(distance);
-
-                        // now the question we want to ask is, does this sphere receive light
-                        // from any light source? if so, we should calculate the amount of
-                        // light falling onto the sphere at that position...
-
-                        // we'll need the surface normal at the hit point for lighting
-                        Vector normal = geometry[hitSphere].Normal(hitPoint);
-
-                        // this is the same as asking whether there is any sphere in the way
-                        // between the hit point and the light source, so we check that
-
-                        foreach (var light in lights) {
-                            Vector hitPointToLight = light.position - hitPoint;
-                            float distanceToLight = Vector.Length(hitPointToLight);
-
-                            Ray lightRay = new Ray(hitPoint, hitPointToLight);
-
-                            float distanceToObstacle;
-                            int unused;
-
-                            if (!Intersect(lightRay, out unused, out distanceToObstacle, 1e-4f, distanceToLight)) {
-                                // there is no obstacle, so this light is visible from the hit
-                                // point. therefore, calculate the amount of light here...
-
-                                // lighting term = sphere color * dot(light vector, normal) * intensity / distance^2
-                                color += materials[hitSphere] * Math.Max(0, Vector.Dot(lightRay.Direction, normal)) * light.intensity / (float)Math.Pow(distanceToLight, 2);
-                            }
-                        }
-                    }
-
-                    img.SetPixel(x, y, Color.FromArgb(floatToInt(color.X),
-                                                      floatToInt(color.Y),
-                                                      floatToInt(color.Z)));
+                    img.SetPixel(x, y, Color.FromArgb(floatToInt(radiance.X),
+                                                      floatToInt(radiance.Y),
+                                                      floatToInt(radiance.Z)));
                 }
             }
 
