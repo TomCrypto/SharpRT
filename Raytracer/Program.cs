@@ -95,24 +95,21 @@ namespace SharpRT
     class MainClass
     {
         private static IList<Sphere> geometry = new List<Sphere>() {
-            new Sphere(new Point(-1, 1, 10), 2),
-            new Sphere(new Point(1, -1, 4), 1),
-            new Sphere(new Point(0, -255, 0), 250),
+            new Sphere(new Point(-1, 0, 0.8f), 0.8f),
+            new Sphere(new Point(+1, 0, 0.8f), 0.8f),
         };
 
         private static IList<Material> materials = new List<Material>() {
             new Material(new Vector(1, 0, 0)),
-            new Material(new Vector(0, 0, 1)),
-            new Material(new Vector(0, 1, 0)),
+            new Material(new Vector(1, 1, 1)),
         };
 
         private static IList<Light> lights = new List<Light>() {
-            new Light(new Point(0, 6, 0), 160),
-            new Light(new Point(-2, 4, 1), 45),
+            new Light(new Point(0, 0, 0.8f), 0.5f),
         };
 
         public static bool Intersect(Ray ray, out int sphereIndex, out float distance,
-                                     float minDistance = 0, float maxDistance = float.MaxValue)
+                                     float minDistance = 1e-4f, float maxDistance = float.MaxValue)
         {
             distance = maxDistance;
             sphereIndex = -1;
@@ -190,7 +187,7 @@ namespace SharpRT
                 if (recurse) {
                     // now try and approximately evaluate light contribution over the entire hemisphere
 
-                    const int NUM_DIRECTIONS = 20;
+                    const int NUM_DIRECTIONS = 50;
 
                     for (int i = 0; i < NUM_DIRECTIONS; ++i) {
                         Vector dir = RandomDirectionInHemisphere(normal);
@@ -249,7 +246,7 @@ namespace SharpRT
                     // get the corresponding camera ray for this pixel
                     var ray = camera.TraceRay(u, v);
 
-                    Vector radiance = Radiance(ray);
+                    Vector radiance = Radiance(ray); // pass false here to disable global illumination
 
                     img.SetPixel(x, y, Color.FromArgb(floatToInt(radiance.X),
                                                       floatToInt(radiance.Y),
