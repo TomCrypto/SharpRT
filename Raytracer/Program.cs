@@ -65,18 +65,146 @@ namespace SharpRT
         }
     }
 
-    public struct Material
+    public struct Basis
+    {
+        private Matrix basisTransform;
+
+        public Matrix Transform
+        {
+            get { return basisTransform; }
+        }
+
+        public Vector Tangent
+        {
+            get { return basisTransform.U; }
+        }
+
+        public Vector Normal
+        {
+            get { return basisTransform.V; }
+        }
+
+        public Vector Bitangent
+        {
+            get { return basisTransform.W; }
+        }
+
+        /// <summary>
+        /// Creates an unoriented basis about the given normal axis.
+        /// </summary>
+        public Basis(Vector normal)
+        {
+            Vector dv;
+
+            if (normal.X != 0) {
+                dv = new Vector(0, 1, 1);
+            } else if (normal.Y != 0) {
+                dv = new Vector(1, 0, 1);
+            } else if (normal.Z != 0) {
+                dv = new Vector(1, 1, 0);
+            } else {
+                throw new ArgumentException("Normal vector was zero.");
+            }
+
+            var tmp = Vector.Cross(normal, dv);
+            var tangent = Vector.Cross(normal, tmp);
+            var bitangent = Vector.Cross(normal, tangent);
+
+            basisTransform = new Matrix(tangent, normal, bitangent, Vector.Zero);
+        }
+
+        public Basis(Vector normal, Vector tangent, Vector bitangent)
+        {
+            basisTransform = new Matrix(tangent, normal, bitangent, Vector.Zero);
+        }
+    };
+
+    public struct LocalDirection
+    {
+        private Vector direction;
+        private float cosine;
+
+        public float Cosine
+        {
+            get { return cosine; }
+        }
+
+        public Vector Direction
+        {
+            get { return direction; }
+        }
+
+        public LocalDirection(Vector direction, Basis basis)
+        {
+            this.direction = direction;
+            this.cosine = Vector.Dot(basis.Normal, direction);
+        }
+    }
+
+    public interface IMaterial
+    {
+        Vector Weight(LocalDirection outgoing, Basis relativeBasis, Random random /* sampling parameters ... */);
+        Vector Sample(LocalDirection outgoing, Basis relativeBasis, Random random /* sampling parameters ... */);
+        Vector BRDF(LocalDirection incident, LocalDirection outgoing, Basis relativeBasis);
+    }
+
+    public struct Lambertian : IMaterial
     {
         private Vector albedo;
 
-        public Material(Vector albedo)
+        public Lambertian(Vector albedo)
         {
             this.albedo = albedo; // 0 <= albedo <= 1 (for each channel)
         }
 
-        public Vector BRDF(float cosI, float cosO)
+        public Vector Weight(LocalDirection outgoing, Basis relativeBasis, Random random)
+        {
+            return this.albedo;
+        }
+
+        public Vector Sample(LocalDirection outgoing, Basis relativeBasis, Random random)
+        {
+            double Xi1 = random.NextDouble();
+            double Xi2 = random.NextDouble();
+
+            double theta = Math.Acos(Math.Sqrt(1 - Xi1));
+            double phi = 2.0 * Math.PI * Xi2;
+
+            float xs = (float)(Math.Sin(theta) * Math.Cos(phi));
+            float ys = (float)(Math.Cos(theta));
+            float zs = (float)(Math.Sin(theta) * Math.Sin(phi));
+
+            return Vector.Normalize(relativeBasis.Transform * new Vector(xs, ys, zs));
+        }
+
+        public Vector BRDF(LocalDirection incident, LocalDirection outgoing, Basis relativeBasis)
         {
             return this.albedo / (float)Math.PI;
+        }
+    }
+
+    public struct Mirror : IMaterial
+    {
+        private Vector reflection;
+
+        public Mirror(Vector reflection)
+        {
+            this.reflection = reflection;
+        }
+
+        public Vector Weight(LocalDirection outgoing, Basis relativeBasis, Random random)
+        {
+            return this.reflection * outgoing.Cosine;
+        }
+
+        public Vector Sample(LocalDirection outgoing, Basis relativeBasis, Random random)
+        {
+            return outgoing.Direction + 2 * relativeBasis.Normal * outgoing.Cosine;
+        }
+
+        public Vector BRDF(LocalDirection incident, LocalDirection outgoing, Basis relativeBasis)
+        {
+            return Vector.Zero; /* actual probability of incident = reflect(outgoing, basis.normal) is zero */
         }
     }
 
@@ -95,17 +223,20 @@ namespace SharpRT
     class MainClass
     {
         private static IList<Sphere> geometry = new List<Sphere>() {
-            new Sphere(new Point(-1, 0, 0.8f), 0.8f),
-            new Sphere(new Point(+1, 0, 0.8f), 0.8f),
+            new Sphere(new Point(-1, 1, 10), 2),
+            new Sphere(new Point(1, -1, 4), 1),
+            new Sphere(new Point(0, -255, 0), 250),
         };
 
-        private static IList<Material> materials = new List<Material>() {
-            new Material(new Vector(1, 0, 0)),
-            new Material(new Vector(1, 1, 1)),
+        private static IList<IMaterial> materials = new List<IMaterial>() {
+            new Mirror(new Vector(1, 1, 1)),
+            new Lambertian(new Vector(0, 0, 0.6f)),
+            new Lambertian(new Vector(0, 1, 0)),
         };
 
         private static IList<Light> lights = new List<Light>() {
-            new Light(new Point(0, 0, 0.8f), 0.5f),
+            new Light(new Point(0, 6, 0), 160),
+            new Light(new Point(-2, 4, 1), 50),
         };
 
         public static bool Intersect(Ray ray, out int sphereIndex, out float distance,
@@ -130,27 +261,6 @@ namespace SharpRT
 
         private static Random random = new Random();
 
-        public static Vector RandomDirectionInHemisphere(Vector normal)
-        {
-            while (true) {
-                float x = (float)(random.NextDouble() - 0.5);
-                float y = (float)(random.NextDouble() - 0.5);
-                float z = (float)(random.NextDouble() - 0.5);
-
-                if (x*x + y*y + z*z > 0.5f*0.5f) {
-                    continue;
-                }
-
-                Vector dir = Vector.Normalize(new Vector(x, y, z));
-
-                if (Vector.Dot(dir, normal) < 0) {
-                    dir = -dir;
-                }
-
-                return dir;
-            }
-        }
-
         public static Vector Radiance(Ray ray, bool recurse = true)
         {
             Vector total = Vector.Zero;
@@ -163,8 +273,9 @@ namespace SharpRT
 
                 Vector normal = geometry[hitSphere].Normal(hitPoint);
 
-                // compute cosine of angle of outgoing direction with surface normal
-                float cosO = -Vector.Dot(ray.Direction, normal);
+                Basis basis = new Basis(normal);
+
+                var outgoing = new LocalDirection(-ray.Direction, basis);
 
                 // evaluate radiance in the direction of the point light source(s)
 
@@ -178,25 +289,25 @@ namespace SharpRT
                     int unused;
 
                     if (!Intersect(lightRay, out unused, out distanceToObstacle, 1e-4f, distanceToLight)) {
-                        float cosI = Vector.Dot(lightRay.Direction, normal);
+                        var incident = new LocalDirection(lightRay.Direction, basis);
 
-                        total += materials[hitSphere].BRDF(cosI, cosO) * cosI * (light.intensity / (float)Math.Pow(distanceToLight, 2));
+                        total += materials[hitSphere].BRDF(incident, outgoing, basis) * incident.Cosine * (light.intensity / (float)Math.Pow(distanceToLight, 2));
                     }
                 }
 
                 if (recurse) {
                     // now try and approximately evaluate light contribution over the entire hemisphere
 
-                    const int NUM_DIRECTIONS = 50;
+                    const int NUM_DIRECTIONS = 10;
+
+                    var weight = materials[hitSphere].Weight(outgoing, basis, random);
 
                     for (int i = 0; i < NUM_DIRECTIONS; ++i) {
-                        Vector dir = RandomDirectionInHemisphere(normal);
+                        Vector dir = materials[hitSphere].Sample(outgoing, basis, random);
 
                         Vector radianceInThatDir = Radiance(new Ray(hitPoint, dir), false); // don't recurse further
 
-                        float cosI = Vector.Dot(dir, normal);
-
-                        total += materials[hitSphere].BRDF(cosI, cosO) * cosI * radianceInThatDir / NUM_DIRECTIONS;
+                        total += weight * radianceInThatDir / NUM_DIRECTIONS;
                     }
                 }
             }
