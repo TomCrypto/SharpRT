@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace SharpRT
 {
@@ -328,7 +330,7 @@ namespace SharpRT
 
         public static void Main(string[] args)
         {
-            // setup the camera as well
+            // first setup the camera
 
             var camera = new Camera(new Point(0, 0, 0), 0, 0, (float)(75 * Math.PI / 180));
 
@@ -347,7 +349,9 @@ namespace SharpRT
 
             byte[] pixelData = new byte[img.Width * img.Height * 3];
 
-            for (int y = 0; y < img.Height; ++y) {
+            // render in parallel (easy since it's an embarrassingly parallel problem)
+
+            Parallel.For(0, img.Height, (y) => {
                 for (int x = 0; x < img.Width; ++x) {
                     // compute the resolution-independent camera uv coordinates
                     float u = 2 * ((float)x / (img.Width - 1)) - 1;
@@ -365,14 +369,14 @@ namespace SharpRT
                     pixelData[3 * (y * img.Width + x) + 1] = (byte)floatToInt(radiance.Y);
                     pixelData[3 * (y * img.Width + x) + 0] = (byte)floatToInt(radiance.Z);
                 }
-            }
+            });
 
             var bitmapData = img.LockBits(new Rectangle(0, 0, img.Width, img.Height),
                                           ImageLockMode.WriteOnly,
                                           PixelFormat.Format24bppRgb);
 
 
-            System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, bitmapData.Scan0, pixelData.Length);
+            Marshal.Copy(pixelData, 0, bitmapData.Scan0, pixelData.Length);
             img.UnlockBits(bitmapData);
 
             // and save the resulting bitmap as a PNG file
