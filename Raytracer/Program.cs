@@ -334,7 +334,7 @@ namespace SharpRT
 
             // we'll output the result to an image
 
-            var img = new Bitmap(600, 400);
+            var img = new Bitmap(600, 400, PixelFormat.Format24bppRgb);
 
             float uScale = 1;
             float vScale = 1;
@@ -344,6 +344,8 @@ namespace SharpRT
             } else if (img.Height > img.Width) {
                 vScale = (float)img.Height / img.Width;
             }
+
+            byte[] pixelData = new byte[img.Width * img.Height * 3];
 
             for (int y = 0; y < img.Height; ++y) {
                 for (int x = 0; x < img.Width; ++x) {
@@ -359,11 +361,19 @@ namespace SharpRT
 
                     Vector radiance = Radiance(ray); // pass false here to disable global illumination
 
-                    img.SetPixel(x, y, Color.FromArgb(floatToInt(radiance.X),
-                                                      floatToInt(radiance.Y),
-                                                      floatToInt(radiance.Z)));
+                    pixelData[3 * (y * img.Width + x) + 2] = (byte)floatToInt(radiance.X); /* BGR legacy */
+                    pixelData[3 * (y * img.Width + x) + 1] = (byte)floatToInt(radiance.Y);
+                    pixelData[3 * (y * img.Width + x) + 0] = (byte)floatToInt(radiance.Z);
                 }
             }
+
+            var bitmapData = img.LockBits(new Rectangle(0, 0, img.Width, img.Height),
+                                          ImageLockMode.WriteOnly,
+                                          PixelFormat.Format24bppRgb);
+
+
+            System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, bitmapData.Scan0, pixelData.Length);
+            img.UnlockBits(bitmapData);
 
             // and save the resulting bitmap as a PNG file
 
