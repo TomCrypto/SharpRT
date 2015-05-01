@@ -329,7 +329,7 @@ namespace SharpRT
             return false;
         }
 
-        private static Random random = new Random();
+        [ThreadStatic] private static Random random;
 
         public static Vector Radiance(Ray ray)
         {
@@ -431,6 +431,8 @@ namespace SharpRT
             // render in parallel (easy since it's an embarrassingly parallel problem)
 
             Parallel.For(0, img.Height, (y) => {
+                random = new Random(); // create random generator for this thread
+
                 for (int x = 0; x < img.Width; ++x) {
                     // compute the resolution-independent camera uv coordinates
                     float u = 2 * ((float)x / (img.Width - 1)) - 1;
