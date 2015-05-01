@@ -488,7 +488,7 @@ namespace SharpRT
         /// <summary>
         /// Constructs a matrix from four column vectors.
         /// </summary>
-        public Matrix(Vector u, Vector v, Vector w, Vector t)
+        public Matrix(Vector u, Vector v, Vector w, Vector t = default(Vector))
         {
             this.u = u;
             this.v = v;
