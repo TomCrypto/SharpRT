@@ -120,7 +120,7 @@ namespace SharpRT
         public static Vector Normalize(Vector u)
         {
             var len = Length(u);
-            if (len > 1e-10) return u / len;
+            if (len != 0) return u / len;
             else throw new InvalidOperationException("Vector has no direction");
         }
 
@@ -133,7 +133,7 @@ namespace SharpRT
         public static float Inclination(Vector u)
         {
             var len = Length(u);
-            if (len > 1e-10) return (float)(Math.PI / 2 - Math.Acos(u.Y / len));
+            if (len != 0) return (float)(Math.PI / 2 - Math.Acos(u.Y / len));
             else throw new InvalidOperationException("Vector has no direction");
         }
 
@@ -146,7 +146,7 @@ namespace SharpRT
         public static float Azimuth(Vector u)
         {
             var len = Length(u);
-            if (len > 1e-10) return (float)Math.Atan2(u.Z, u.X);
+            if (len != 0) return (float)Math.Atan2(u.Z, u.X);
             else throw new InvalidOperationException("Vector has no direction");
         }
 
@@ -356,6 +356,20 @@ namespace SharpRT
         /// The point at the origin.
         /// </summary>
         public static Point Zero = new Point(0, 0, 0);
+
+        public static implicit operator Point(Embree.Vertex vertex)
+        {
+            return new Point(vertex.X, vertex.Y, vertex.Z);
+        }
+
+        public static implicit operator Embree.Vertex(Point point)
+        {
+            return new Embree.Vertex {
+                X = point.X,
+                Y = point.Y,
+                Z = point.Z
+            };
+        }
     }
 
     /// <summary>
@@ -755,6 +769,19 @@ namespace SharpRT
         public Matrix InverseTranspose()
         {
             return InverseTranspose(this);
+        }
+
+        /// <summary>
+        /// Returns the matrix as a column-major float array.
+        /// </summary>
+        public float[] ToArray()
+        {
+            return new float[] {
+                U.X, U.Y, U.Z,
+                V.X, V.Y, V.Z,
+                W.X, W.Y, W.Z,
+                T.X, T.Y, T.Z,
+            };
         }
 
         /// <summary>
