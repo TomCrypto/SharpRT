@@ -111,73 +111,14 @@ namespace SharpRT
 
         public static void Main(string[] args)
         {
-            // first setup the camera
+            if (args.Length != 2) {
+                Console.WriteLine("Usage:\n\tRaytracer.exe <scene file> <output file>");
+                return;
+            }
 
-            var camera = new Camera(new Point(0, 1, -2), -0.2f, 0, (float)(75 * Math.PI / 180));
+            Camera camera;
 
-            // load some generic geometric meshes to be rendered
-
-            var floorGeometry = new SimpleMesh("Models/floor.obj", false);
-            var bunnyGeometry = new SimpleMesh("Models/bunny.obj", true);
-            var sphereGeometry = new SimpleMesh("Models/sphere.obj", true);
-            var teapotGeometry = new SimpleMesh("Models/teapot.obj", true);
-
-            // then set up the scene
-
-            using (var scene = new Scene()) {
-                // instantiate the meshes into concrete surfaces, with their own materials and locations
-
-                // place a grayish floor on the ground
-
-                scene.Add(new Surface(floorGeometry,
-                    new SimpleMaterial(new Lambertian(new Vector(0.8f, 0.8f, 0.8f))),
-                    AbsoluteLocation.Origin)
-                );
-
-                // place a large rabbit with a blue material
-
-                scene.Add(new Surface(bunnyGeometry,
-                    new SimpleMaterial(new Lambertian(new Vector(0.25f, 0.25f, 0.75f))),
-                    new AbsoluteLocation(Matrix.Scaling(5)))
-                );
-
-                // place another smaller rabbit somewhere else with a yellow material
-
-                scene.Add(new Surface(bunnyGeometry,
-                    new SimpleMaterial(new Lambertian(new Vector(0.75f, 0.75f, 0.25f))),
-                    new AbsoluteLocation(Matrix.Translation(new Vector(-0.5f, 0.0f, -0.5f))
-                                       * Matrix.Scaling(3.5f)))
-                );
-
-                // place yet another smaller rabbit somewhere else with a red material
-
-                scene.Add(new Surface(bunnyGeometry,
-                    new SimpleMaterial(new Lambertian(new Vector(0.75f, 0.25f, 0.25f))),
-                    new AbsoluteLocation(Matrix.Translation(new Vector(0.5f, 0.0f, -1.0f))
-                                       * Matrix.Scaling(2.5f)))
-                );
-
-                // place a copy of the sphere at the back, towards the right, with a mirror material slightly tinted green
-
-                scene.Add(new Surface(sphereGeometry,
-                    new SimpleMaterial(new Mirror(new Vector(0.85f, 0.95f, 0.85f))),
-                    new AbsoluteLocation(Matrix.Translation(new Vector(1.5f, 1.0f, 0.5f))))
-                );
-
-                // place a teapot somewhere
-
-                scene.Add(new Surface(teapotGeometry,
-                    new SimpleMaterial(new Lambertian(new Vector(0.25f, 0.75f, 0.25f))),
-                    new AbsoluteLocation(Matrix.Translation(new Vector(0, 0, -0.5f))
-                                       * Matrix.Scaling(0.1f)))
-                );
-
-                // commit when done messing with the geometry
-
-                scene.Commit();
-
-                // scene is now ready for rendering
-
+            using (var scene = Loader.LoadScene(args[0], out camera)) {
                 int width = 800, height = 600;
                 var img = new Bitmap(width, height, PixelFormat.Format24bppRgb);
 
@@ -224,10 +165,8 @@ namespace SharpRT
                 Marshal.Copy(pixelData, 0, bitmapData.Scan0, pixelData.Length);
                 img.UnlockBits(bitmapData);
 
-                img.Save("output.png", ImageFormat.Png);
+                img.Save(args[1], ImageFormat.Png);
             }
-
-            Console.WriteLine("Done!");
         }
     }
 }
