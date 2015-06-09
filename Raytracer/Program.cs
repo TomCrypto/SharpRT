@@ -111,8 +111,8 @@ namespace SharpRT
 
         public static void Main(string[] args)
         {
-            if (args.Length != 2) {
-                Console.WriteLine("Usage:\n\tRaytracer.exe <scene file> <output file>");
+            if (!((args.Length == 2) || (args.Length == 3))) {
+                Console.WriteLine("Usage:\n\tRaytracer.exe [scene file] [output file] [sample count = 250]");
                 return;
             }
 
@@ -145,7 +145,7 @@ namespace SharpRT
 
                         Vector radiance = Vector.Zero;
 
-                        const int SAMPLES = 500; // more = crisper image
+                        int SAMPLES = args.Length == 3 ? int.Parse(args[2]) : 250; // more = crisper image
 
                         for (int s = 0; s < SAMPLES; ++s) {
                             radiance += Radiance(ctx, ray);
