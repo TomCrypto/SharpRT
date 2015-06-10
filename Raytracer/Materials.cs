@@ -117,15 +117,6 @@ namespace SharpRT
 
         public Vector BRDF(Direction incoming, Direction outgoing, Basis basis)
         {
-            /* Correct whenever incoming and outgoing are not reflections of each other
-             * about the basis normal. Since the BRDF is currently only used for direct
-             * point light source sampling, that has probability zero of occurring.
-             * 
-             * Besides, delta functions are tricky to implement in code because of the
-             * inaccuracies inherent to floating-point. If we were using fixed point
-             * arithmetic, then it might actually make sense to implement the real BRDF.
-            */
-
             return Vector.Zero;
         }
 

@@ -111,15 +111,16 @@ namespace SharpRT
 
         public static void Main(string[] args)
         {
-            if (!((args.Length == 2) || (args.Length == 3))) {
-                Console.WriteLine("Usage:\n\tRaytracer.exe [scene file] [output file] [sample count = 250]");
+            if ((args.Length < 2) || (args.Length > 5)) {
+                Console.WriteLine("Usage:\n\tRaytracer.exe [scene file] [output file] [sample count = 250] [width = 800] [height = 600]");
                 return;
             }
 
             Camera camera;
 
             using (var scene = Loader.LoadScene(args[0], out camera)) {
-                int width = 800, height = 600;
+                int width = args.Length >= 4 ? int.Parse(args[3]) : 800;
+                int height = args.Length >= 5 ? int.Parse(args[4]) : 600;
                 var img = new Bitmap(width, height, PixelFormat.Format24bppRgb);
 
                 float uScale = 1;
@@ -145,7 +146,7 @@ namespace SharpRT
 
                         Vector radiance = Vector.Zero;
 
-                        int SAMPLES = args.Length == 3 ? int.Parse(args[2]) : 250; // more = crisper image
+                        int SAMPLES = args.Length >= 3 ? int.Parse(args[2]) : 250; // more = crisper image
 
                         for (int s = 0; s < SAMPLES; ++s) {
                             radiance += Radiance(ctx, ray);
